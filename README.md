@@ -14,13 +14,18 @@ Link ChEMBL bioactivity data with PDB structural information to create a curated
 
 ```bash
 # Clone the repository
+git clone https://github.com/HFooladi/chembl-pdb-linker.git
 cd chembl-pdb-linker
 
-# Install with pip
-pip install -e .
-
-# Or with uv
+# Option 1: Install with uv (recommended)
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -e .
+
+# Option 2: Install with pip
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
 ### Dependencies
