@@ -1,0 +1,60 @@
+# ChEMBL-PDB Linker Configuration
+
+# Paths
+paths:
+  data_dir: "data"
+  raw_dir: "data/raw"
+  intermediate_dir: "data/intermediate"
+  output_dir: "data/curated"
+
+# ChEMBL settings
+chembl:
+  # Base URL for ChEMBL FTP
+  ftp_base: "ftp://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/"
+  # API base URL
+  api_base: "https://www.ebi.ac.uk/chembl/api/data"
+  # Confidence score filter (9 = single protein target)
+  confidence_score: 9
+  # Activity types to include
+  activity_types:
+    - "IC50"
+    - "Ki"
+    - "Kd"
+    - "EC50"
+  # Standard units for each activity type
+  standard_units:
+    - "nM"
+
+# PDB settings
+pdb:
+  # PDBe API base URL
+  api_base: "https://www.ebi.ac.uk/pdbe/api"
+  # RCSB API base URL
+  rcsb_api_base: "https://data.rcsb.org/rest/v1"
+  # SIFTS FTP for UniProt mappings
+  sifts_ftp: "ftp://ftp.ebi.ac.uk/pub/databases/msd/sifts/flatfiles/csv/"
+  # Maximum resolution filter (Angstroms)
+  max_resolution: 3.5
+
+# Linking settings
+linking:
+  # Use InChIKey for ligand matching
+  use_inchikey: true
+  # Match on first 14 characters of InChIKey (connectivity layer)
+  inchikey_connectivity_only: false
+
+# API settings
+api:
+  # Rate limit (requests per second)
+  rate_limit: 5
+  # Request timeout (seconds)
+  timeout: 30
+  # Number of retries on failure
+  max_retries: 3
+
+# Output settings
+output:
+  # Output format
+  format: "parquet"
+  # Compression for parquet
+  compression: "snappy"
