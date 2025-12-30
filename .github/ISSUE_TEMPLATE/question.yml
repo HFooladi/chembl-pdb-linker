@@ -1,0 +1,74 @@
+name: ❓ Question
+description: Ask a question about using chembl-pdb-linker
+title: "[Question]: "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about using chembl-pdb-linker? We're here to help!
+        Please check the README and existing issues first.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: Your question...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide context about what you're trying to accomplish
+      placeholder: |
+        I'm trying to...
+        My goal is...
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: What have you already tried or researched?
+      placeholder: |
+        I looked at the README and...
+        I tried running...
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      description: What is your question about?
+      options:
+        - Installation
+        - Configuration
+        - Pipeline usage
+        - Data interpretation
+        - Integration with other tools
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any additional context that might help
+      placeholder: Any additional information...
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I have read the README
+          required: true
+        - label: I have searched existing issues for similar questions
+          required: true
+

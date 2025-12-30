@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "Hosein Fooladi", email = "fooladi.hosein@gmail.com" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -50,8 +50,11 @@ dev = [
 chembl-pdb-linker = "chembl_pdb_linker.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/chembl-pdb-linker"
-Repository = "https://github.com/yourusername/chembl-pdb-linker"
+Homepage = "https://github.com/HFooladi/chembl-pdb-linker"
+Repository = "https://github.com/HFooladi/chembl-pdb-linker"
+Documentation = "https://github.com/HFooladi/chembl-pdb-linker#readme"
+Issues = "https://github.com/HFooladi/chembl-pdb-linker/issues"
+Changelog = "https://github.com/HFooladi/chembl-pdb-linker/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chembl_pdb_linker"]
