@@ -500,23 +500,17 @@ class PDBDownloader:
     def download_ligand_inchikey_mapping(self) -> pd.DataFrame:
         """Download and parse ligand code to InChIKey mapping.
 
-        This fetches InChIKeys for all common PDB ligands. For efficiency,
-        it uses the PDBe compound summary API.
+        This downloads the PDB Chemical Component Dictionary and extracts
+        InChIKeys for all PDB ligands.
 
         Returns:
             DataFrame with (ligand_code, ligand_inchikey) mapping
         """
         # Check if we already have the mapping cached
-        cache_path = self.intermediate_dir / "pdb_ligand_inchikeys.parquet"
+        cache_path = self.raw_dir / "pdb_ligand_inchikeys.parquet"
         if cache_path.exists():
             logger.info(f"Loading cached ligand InChIKey mapping from {cache_path}")
-            return pd.read_parquet(cache_path)
-
-        # Also check raw directory for pre-downloaded mapping
-        raw_cache = self.raw_dir / "pdb_ligand_inchikeys.parquet"
-        if raw_cache.exists():
-            logger.info(f"Loading ligand InChIKey mapping from {raw_cache}")
-            df = pd.read_parquet(raw_cache)
+            df = pd.read_parquet(cache_path)
             # Normalize column names
             if "pdb_ligand_code" in df.columns and "ligand_code" not in df.columns:
                 df = df.rename(columns={"pdb_ligand_code": "ligand_code"})
@@ -524,9 +518,76 @@ class PDBDownloader:
                 df = df.rename(columns={"pdb_inchikey": "ligand_inchikey"})
             return df
 
-        logger.warning(
-            "No ligand InChIKey mapping found. "
-            "This mapping should be pre-generated for large-scale processing. "
-            "Place pdb_ligand_inchikeys.parquet in data/raw/ directory."
-        )
-        return pd.DataFrame()
+        # Also check intermediate directory
+        intermediate_cache = self.intermediate_dir / "pdb_ligand_inchikeys.parquet"
+        if intermediate_cache.exists():
+            logger.info(f"Loading ligand InChIKey mapping from {intermediate_cache}")
+            return pd.read_parquet(intermediate_cache)
+
+        # Download and parse PDB Component Dictionary
+        logger.info("Downloading and parsing PDB Component Dictionary...")
+        cif_path = self.download_ligand_expo()
+        df = self._parse_component_dictionary(cif_path)
+
+        if not df.empty:
+            # Save to raw directory for future use
+            df.to_parquet(cache_path, index=False)
+            logger.info(f"Saved ligand InChIKey mapping to {cache_path}")
+
+        return df
+
+    def _parse_component_dictionary(self, cif_path: Path) -> pd.DataFrame:
+        """Parse the PDB Component Dictionary to extract ligand InChIKeys.
+
+        Args:
+            cif_path: Path to components.cif.gz file
+
+        Returns:
+            DataFrame with (ligand_code, ligand_inchikey) mapping
+        """
+        import re
+
+        logger.info(f"Parsing PDB Component Dictionary from {cif_path}")
+
+        results = []
+        current_comp = None
+        current_inchikey = None
+
+        # Parse the CIF file
+        with gzip.open(cif_path, "rt", errors="replace") as f:
+            for line in tqdm(f, desc="Parsing component dictionary"):
+                # Detect new component block
+                if line.startswith("data_"):
+                    # Save previous component if it has InChIKey
+                    if current_comp and current_inchikey:
+                        results.append(
+                            {
+                                "ligand_code": current_comp,
+                                "ligand_inchikey": current_inchikey,
+                            }
+                        )
+                    # Start new component
+                    current_comp = line.strip().replace("data_", "")
+                    current_inchikey = None
+
+                # Look for InChIKey
+                elif "_pdbx_chem_comp_descriptor.descriptor" in line or (
+                    current_comp and "InChIKey" in line
+                ):
+                    # InChIKey format: InChIKey=XXXXXX-YYYYYY-Z
+                    match = re.search(r"InChIKey=([A-Z]{14}-[A-Z]{10}-[A-Z])", line)
+                    if match:
+                        current_inchikey = match.group(1)
+
+            # Don't forget the last component
+            if current_comp and current_inchikey:
+                results.append(
+                    {
+                        "ligand_code": current_comp,
+                        "ligand_inchikey": current_inchikey,
+                    }
+                )
+
+        df = pd.DataFrame(results)
+        logger.info(f"Extracted {len(df)} ligand InChIKey mappings from Component Dictionary")
+        return df
