@@ -73,7 +73,7 @@ def download(
             typer.echo(f"  - {name}: {path}")
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -123,15 +123,15 @@ def link(
             sifts_path=sifts,
             ligands_path=ligands,
         )
-        typer.echo(f"\nLinking complete!")
+        typer.echo("\nLinking complete!")
         typer.echo(f"Linked {len(linked)} records")
     except FileNotFoundError as e:
         typer.echo(f"Error: {e}", err=True)
         typer.echo("Run 'chembl-pdb-linker download' first.", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -173,15 +173,15 @@ def extract(
             linked_path=linked,
             enrich_structures=not no_enrich,
         )
-        typer.echo(f"\nExtraction complete!")
+        typer.echo("\nExtraction complete!")
         typer.echo(f"Output file: {output_path}")
     except FileNotFoundError as e:
         typer.echo(f"Error: {e}", err=True)
         typer.echo("Run 'chembl-pdb-linker link' first.", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -223,11 +223,11 @@ def run(
             chembl_version=chembl_version,
             enrich_structures=not no_enrich,
         )
-        typer.echo(f"\nPipeline complete!")
+        typer.echo("\nPipeline complete!")
         typer.echo(f"Output file: {output_path}")
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()

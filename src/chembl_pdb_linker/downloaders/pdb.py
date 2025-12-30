@@ -4,7 +4,6 @@ import gzip
 import logging
 import time
 import urllib.request
-from io import StringIO
 from pathlib import Path
 from typing import Optional
 
@@ -67,9 +66,7 @@ class PDBDownloader:
                     self.total = tsize
                 self.update(b * bsize - self.n)
 
-        with DownloadProgressBar(
-            unit="B", unit_scale=True, miniters=1, desc=dest.name
-        ) as progress:
+        with DownloadProgressBar(unit="B", unit_scale=True, miniters=1, desc=dest.name) as progress:
             urllib.request.urlretrieve(url, dest, reporthook=progress.update_to)
 
     def load_sifts_mapping(self, csv_path: Optional[Path] = None) -> pd.DataFrame:
@@ -84,7 +81,7 @@ class PDBDownloader:
         logger.info(f"Loading SIFTS mapping from {csv_path}")
 
         # SIFTS CSV has a header line starting with #
-        df = pd.read_csv(csv_path, comment="#", header=0)
+        df = pd.read_csv(csv_path, comment="#", header=0, low_memory=False)
 
         # Rename columns to be more descriptive
         column_mapping = {
@@ -99,6 +96,18 @@ class PDBDownloader:
             "SP_END": "sp_end",
         }
         df = df.rename(columns=column_mapping)
+
+        # Convert string columns to string type and numeric columns properly
+        str_cols = ["pdb_id", "chain_id", "uniprot_id"]
+        for col in str_cols:
+            if col in df.columns:
+                df[col] = df[col].astype(str)
+
+        # Convert numeric columns, coercing errors to NaN
+        num_cols = ["res_begin", "res_end", "pdb_begin", "pdb_end", "sp_begin", "sp_end"]
+        for col in num_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
         logger.info(f"Loaded {len(df)} PDB-UniProt mappings")
         return df
@@ -132,9 +141,7 @@ class PDBDownloader:
                                 "title": entry.get("title", ""),
                                 "release_date": entry.get("release_date", ""),
                                 "resolution": entry.get("resolution", None),
-                                "experimental_method": entry.get(
-                                    "experimental_method", [""]
-                                )[0],
+                                "experimental_method": entry.get("experimental_method", [""])[0],
                             }
                         )
                 elif response.status_code != 404:
@@ -253,6 +260,157 @@ class PDBDownloader:
 
         return pd.DataFrame(results)
 
+    def fetch_ligand_structures_via_rcsb(
+        self,
+        ligand_codes: list[str],
+        filter_pdb_ids: Optional[set[str]] = None,
+    ) -> pd.DataFrame:
+        """Fetch PDB structures containing specific ligands via RCSB Search API.
+
+        This method efficiently queries which PDB structures contain specific ligands
+        by using the RCSB Search API (reverse lookup by ligand code).
+
+        Args:
+            ligand_codes: List of PDB ligand codes to search for
+            filter_pdb_ids: Optional set of PDB IDs to filter results to
+                           (e.g., PDBs containing ChEMBL proteins)
+
+        Returns:
+            DataFrame with (pdb_id, ligand_code) pairs
+        """
+        logger.info(
+            f"Fetching PDB structures for {len(ligand_codes)} ligand codes via RCSB Search API"
+        )
+
+        results = []
+        search_url = self.config.pdb.rcsb_search_api
+
+        for code in tqdm(ligand_codes, desc="Querying RCSB for ligand structures"):
+            query = {
+                "query": {
+                    "type": "terminal",
+                    "service": "text_chem",
+                    "parameters": {
+                        "attribute": "rcsb_chem_comp_container_identifiers.comp_id",
+                        "operator": "exact_match",
+                        "value": code,
+                    },
+                },
+                "return_type": "entry",
+                "request_options": {"return_all_hits": True},
+            }
+
+            try:
+                response = self.client.post(search_url, json=query)
+                if response.status_code == 200:
+                    data = response.json()
+                    for result in data.get("result_set", []):
+                        pdb_id = result["identifier"].upper()
+                        # Filter to relevant PDBs if filter set provided
+                        if filter_pdb_ids is None or pdb_id in filter_pdb_ids:
+                            results.append({"pdb_id": pdb_id, "ligand_code": code})
+                time.sleep(0.05)  # Rate limiting
+            except Exception as e:
+                logger.debug(f"Error querying RCSB for {code}: {e}")
+
+        df = pd.DataFrame(results)
+        if not df.empty:
+            df = df.drop_duplicates()
+            logger.info(
+                f"Found {len(df)} PDB-ligand pairs "
+                f"({df['pdb_id'].nunique()} unique PDBs, "
+                f"{df['ligand_code'].nunique()} unique ligands)"
+            )
+        else:
+            logger.warning("No PDB-ligand pairs found")
+
+        return df
+
+    def fetch_pdb_ligands_with_inchikeys(
+        self,
+        chembl_inchikeys: set[str],
+        chembl_pdb_ids: set[str],
+        ligand_inchikey_mapping: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Fetch complete PDB ligand data with InChIKeys for linking.
+
+        This method:
+        1. Finds ligand codes that have InChIKeys matching ChEMBL compounds
+        2. Queries RCSB to find which PDB structures contain those ligands
+        3. Filters to PDB structures that contain ChEMBL proteins
+        4. Returns complete mapping with InChIKeys for linking
+
+        Args:
+            chembl_inchikeys: Set of InChIKeys from ChEMBL compounds
+            chembl_pdb_ids: Set of PDB IDs that contain ChEMBL proteins
+            ligand_inchikey_mapping: DataFrame with ligand_code -> inchikey mapping
+
+        Returns:
+            DataFrame with (pdb_id, ligand_code, ligand_inchikey) for linking
+        """
+        logger.info("Building PDB ligand data for ChEMBL-PDB linking")
+
+        # Find common InChIKeys between ChEMBL and PDB ligands
+        inchikey_col = None
+        for col in ["ligand_inchikey", "pdb_inchikey", "inchikey"]:
+            if col in ligand_inchikey_mapping.columns:
+                inchikey_col = col
+                break
+
+        if inchikey_col is None:
+            raise ValueError("No InChIKey column found in ligand mapping")
+
+        ligand_code_col = None
+        for col in ["ligand_code", "pdb_ligand_code"]:
+            if col in ligand_inchikey_mapping.columns:
+                ligand_code_col = col
+                break
+
+        if ligand_code_col is None:
+            raise ValueError("No ligand code column found in ligand mapping")
+
+        # Find ligand codes with InChIKeys that match ChEMBL compounds
+        pdb_inchikeys = set(ligand_inchikey_mapping[inchikey_col].dropna().unique())
+        common_inchikeys = chembl_inchikeys & pdb_inchikeys
+        logger.info(f"Common InChIKeys between ChEMBL and PDB: {len(common_inchikeys)}")
+
+        if len(common_inchikeys) == 0:
+            logger.warning("No common InChIKeys found")
+            return pd.DataFrame()
+
+        # Get ligand codes for common InChIKeys
+        common_ligands = ligand_inchikey_mapping[
+            ligand_inchikey_mapping[inchikey_col].isin(common_inchikeys)
+        ]
+        ligand_codes = common_ligands[ligand_code_col].unique().tolist()
+        logger.info(f"Ligand codes to query: {len(ligand_codes)}")
+
+        # Normalize PDB IDs to uppercase for matching
+        chembl_pdb_ids_upper = {p.upper() for p in chembl_pdb_ids}
+
+        # Query RCSB for PDB structures containing these ligands
+        pdb_ligand_pairs = self.fetch_ligand_structures_via_rcsb(
+            ligand_codes, filter_pdb_ids=chembl_pdb_ids_upper
+        )
+
+        if pdb_ligand_pairs.empty:
+            return pd.DataFrame()
+
+        # Add InChIKeys to the results
+        ligand_to_inchikey = common_ligands[[ligand_code_col, inchikey_col]].drop_duplicates()
+        ligand_to_inchikey = ligand_to_inchikey.rename(
+            columns={ligand_code_col: "ligand_code", inchikey_col: "ligand_inchikey"}
+        )
+
+        result = pdb_ligand_pairs.merge(ligand_to_inchikey, on="ligand_code", how="left")
+
+        logger.info(
+            f"Final PDB ligand data: {len(result)} pairs "
+            f"({result['pdb_id'].nunique()} PDBs, {result['ligand_code'].nunique()} ligands)"
+        )
+
+        return result
+
     def save_intermediate(self, df: pd.DataFrame, name: str) -> Path:
         """Save intermediate data to parquet.
 
@@ -269,12 +427,21 @@ class PDBDownloader:
         logger.info(f"Saved {name} to {output_path}")
         return output_path
 
-    def run(self, uniprot_ids: Optional[list[str]] = None) -> dict[str, Path]:
+    def run(
+        self,
+        uniprot_ids: Optional[list[str]] = None,
+        chembl_inchikeys: Optional[set[str]] = None,
+        ligand_inchikey_mapping: Optional[pd.DataFrame] = None,
+    ) -> dict[str, Path]:
         """Run the PDB data download and extraction pipeline.
 
         Args:
             uniprot_ids: Optional list of UniProt IDs to filter by.
                         If None, downloads full SIFTS mapping.
+            chembl_inchikeys: Optional set of InChIKeys from ChEMBL compounds.
+                             Used for efficient ligand-structure lookup via RCSB.
+            ligand_inchikey_mapping: Optional DataFrame with ligand code to InChIKey mapping.
+                                    If not provided, will attempt to load from raw data.
 
         Returns:
             Dictionary of output file paths
@@ -289,24 +456,29 @@ class PDBDownloader:
             logger.info(f"Filtered to {len(sifts_df)} mappings for {len(uniprot_ids)} UniProt IDs")
 
         # Get unique PDB IDs
-        pdb_ids = sifts_df["pdb_id"].unique().tolist()
+        pdb_ids = list(sifts_df["pdb_id"].unique())  # type: ignore[attr-defined]
+        pdb_ids_set = {p.upper() for p in pdb_ids}
         logger.info(f"Found {len(pdb_ids)} unique PDB IDs")
 
-        # Fetch PDB metadata (for a subset if too many)
-        if len(pdb_ids) > 10000:
-            logger.warning(
-                f"Too many PDB IDs ({len(pdb_ids)}). "
-                "Consider filtering by UniProt IDs first."
-            )
-
         # Save mappings
-        outputs = {
-            "sifts_mapping": self.save_intermediate(sifts_df, "sifts_mapping"),
+        outputs: dict[str, Path] = {
+            "sifts_mapping": self.save_intermediate(sifts_df, "sifts_mapping"),  # type: ignore[arg-type]
         }
 
-        # Optionally fetch additional metadata via API
-        # This is expensive for large datasets, so we make it optional
-        if len(pdb_ids) <= 1000:
+        # Fetch PDB ligand data for linking
+        if chembl_inchikeys is not None and ligand_inchikey_mapping is not None:
+            # Use RCSB Search API for efficient ligand-structure lookup
+            logger.info("Fetching PDB ligand data via RCSB Search API")
+            ligands_df = self.fetch_pdb_ligands_with_inchikeys(
+                chembl_inchikeys=chembl_inchikeys,
+                chembl_pdb_ids=pdb_ids_set,
+                ligand_inchikey_mapping=ligand_inchikey_mapping,
+            )
+            if not ligands_df.empty:
+                outputs["ligands"] = self.save_intermediate(ligands_df, "ligands")
+        elif len(pdb_ids) <= 1000:
+            # Fallback: fetch ligand info per PDB ID for small datasets
+            logger.info("Fetching PDB ligand info via PDBe API (small dataset)")
             ligands_df = self.fetch_ligand_info(pdb_ids)
             if not ligands_df.empty:
                 # Fetch InChIKeys for ligands
@@ -316,5 +488,45 @@ class PDBDownloader:
                 # Merge InChIKeys with ligand info
                 ligands_df = ligands_df.merge(inchikeys_df, on="ligand_code", how="left")
                 outputs["ligands"] = self.save_intermediate(ligands_df, "ligands")
+        else:
+            logger.warning(
+                f"Large dataset ({len(pdb_ids)} PDB IDs) but no ChEMBL InChIKeys provided. "
+                "Ligand linking will not be available. "
+                "Provide chembl_inchikeys and ligand_inchikey_mapping for full linking."
+            )
 
         return outputs
+
+    def download_ligand_inchikey_mapping(self) -> pd.DataFrame:
+        """Download and parse ligand code to InChIKey mapping.
+
+        This fetches InChIKeys for all common PDB ligands. For efficiency,
+        it uses the PDBe compound summary API.
+
+        Returns:
+            DataFrame with (ligand_code, ligand_inchikey) mapping
+        """
+        # Check if we already have the mapping cached
+        cache_path = self.intermediate_dir / "pdb_ligand_inchikeys.parquet"
+        if cache_path.exists():
+            logger.info(f"Loading cached ligand InChIKey mapping from {cache_path}")
+            return pd.read_parquet(cache_path)
+
+        # Also check raw directory for pre-downloaded mapping
+        raw_cache = self.raw_dir / "pdb_ligand_inchikeys.parquet"
+        if raw_cache.exists():
+            logger.info(f"Loading ligand InChIKey mapping from {raw_cache}")
+            df = pd.read_parquet(raw_cache)
+            # Normalize column names
+            if "pdb_ligand_code" in df.columns and "ligand_code" not in df.columns:
+                df = df.rename(columns={"pdb_ligand_code": "ligand_code"})
+            if "pdb_inchikey" in df.columns and "ligand_inchikey" not in df.columns:
+                df = df.rename(columns={"pdb_inchikey": "ligand_inchikey"})
+            return df
+
+        logger.warning(
+            "No ligand InChIKey mapping found. "
+            "This mapping should be pre-generated for large-scale processing. "
+            "Place pdb_ligand_inchikeys.parquet in data/raw/ directory."
+        )
+        return pd.DataFrame()

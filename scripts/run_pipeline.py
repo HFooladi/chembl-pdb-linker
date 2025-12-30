@@ -8,8 +8,8 @@ from pathlib import Path
 # Add parent directory to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from chembl_pdb_linker.config import Config
-from chembl_pdb_linker.pipeline import Pipeline
+from chembl_pdb_linker.config import Config  # noqa: E402
+from chembl_pdb_linker.pipeline import Pipeline  # noqa: E402
 
 # Set up logging
 logging.basicConfig(

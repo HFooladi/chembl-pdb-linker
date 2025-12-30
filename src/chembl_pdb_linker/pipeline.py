@@ -47,6 +47,9 @@ class Pipeline:
     def download(self, chembl_version: str = "latest") -> dict[str, Path]:
         """Download all required data.
 
+        This coordinates ChEMBL and PDB data downloads to enable efficient
+        ligand-structure linking via RCSB Search API.
+
         Args:
             chembl_version: ChEMBL version to download
 
@@ -55,16 +58,46 @@ class Pipeline:
         """
         logger.info("=== Starting data download ===")
 
-        outputs = {}
+        outputs: dict[str, Path] = {}
+        intermediate_dir = self.paths["intermediate_dir"]
 
-        # Download ChEMBL data
-        logger.info("Downloading ChEMBL data...")
+        # Step 1: Download ChEMBL data first (needed for filtering PDB queries)
+        logger.info("Step 1: Downloading ChEMBL data...")
         chembl_outputs = self.chembl_downloader.run(version=chembl_version)
         outputs.update({f"chembl_{k}": v for k, v in chembl_outputs.items()})
 
-        # Download PDB/SIFTS data
-        logger.info("Downloading PDB/SIFTS data...")
-        pdb_outputs = self.pdb_downloader.run()
+        # Step 2: Load ChEMBL activities to get InChIKeys and UniProt IDs
+        logger.info("Step 2: Loading ChEMBL data for PDB filtering...")
+        activities_path = intermediate_dir / "chembl_activities.parquet"
+        if activities_path.exists():
+            activities = pd.read_parquet(activities_path)
+            chembl_inchikeys = set(activities["standard_inchi_key"].dropna().unique())
+            chembl_uniprots = list(activities["uniprot_id"].dropna().unique())
+            logger.info(
+                f"ChEMBL data: {len(chembl_inchikeys):,} unique InChIKeys, "
+                f"{len(chembl_uniprots):,} unique UniProt IDs"
+            )
+        else:
+            logger.warning("ChEMBL activities not found, PDB download will be unfiltered")
+            chembl_inchikeys = None
+            chembl_uniprots = None
+
+        # Step 3: Load or download ligand InChIKey mapping
+        logger.info("Step 3: Loading ligand InChIKey mapping...")
+        ligand_inchikey_mapping = self.pdb_downloader.download_ligand_inchikey_mapping()
+        if ligand_inchikey_mapping.empty:
+            logger.warning(
+                "No ligand InChIKey mapping available. " "Ligand-level linking will be limited."
+            )
+            ligand_inchikey_mapping = None
+
+        # Step 4: Download PDB/SIFTS data with efficient ligand lookup
+        logger.info("Step 4: Downloading PDB/SIFTS data...")
+        pdb_outputs = self.pdb_downloader.run(
+            uniprot_ids=chembl_uniprots,
+            chembl_inchikeys=chembl_inchikeys,
+            ligand_inchikey_mapping=ligand_inchikey_mapping,
+        )
         outputs.update({f"pdb_{k}": v for k, v in pdb_outputs.items()})
 
         logger.info(f"Download complete. Files: {list(outputs.keys())}")
@@ -104,9 +137,7 @@ class Pipeline:
         if sifts_path is None:
             sifts_path = intermediate_dir / "pdb_sifts_mapping.parquet"
         if not sifts_path.exists():
-            raise FileNotFoundError(
-                f"SIFTS mapping not found: {sifts_path}. Run download first."
-            )
+            raise FileNotFoundError(f"SIFTS mapping not found: {sifts_path}. Run download first.")
         sifts = pd.read_parquet(sifts_path)
         logger.info(f"Loaded {len(sifts)} SIFTS mappings")
 
@@ -131,18 +162,14 @@ class Pipeline:
             logger.info(f"Ligand linkage stats: {ligand_stats}")
 
             # Link activities to PDB ligands
-            ligand_linked = self.ligand_linker.link_with_activities(
-                protein_linked, ligands
-            )
+            ligand_linked = self.ligand_linker.link_with_activities(protein_linked, ligands)
             logger.info(f"Ligand-linked: {len(ligand_linked)} activities")
 
             # Use ligand-linked if we got matches, otherwise fall back to protein-linked
             if len(ligand_linked) > 0:
                 linked = ligand_linked
             else:
-                logger.warning(
-                    "No ligand matches found, using protein-level linking only"
-                )
+                logger.warning("No ligand matches found, using protein-level linking only")
                 linked = protein_linked
         else:
             logger.info("No PDB ligands file found, using protein-level linking only")
@@ -175,9 +202,7 @@ class Pipeline:
         if linked_path is None:
             linked_path = intermediate_dir / "linked_chembl_pdb.parquet"
         if not linked_path.exists():
-            raise FileNotFoundError(
-                f"Linked data not found: {linked_path}. Run link first."
-            )
+            raise FileNotFoundError(f"Linked data not found: {linked_path}. Run link first.")
 
         linked = pd.read_parquet(linked_path)
         logger.info(f"Loaded {len(linked)} linked records")
@@ -187,16 +212,14 @@ class Pipeline:
         linked = self.bioactivity_extractor.standardize_units(linked)
 
         # Compute pChEMBL if not present
-        if "pchembl_value" not in linked.columns or linked["pchembl_value"].isna().all():
+        if "pchembl_value" not in linked.columns or bool(linked["pchembl_value"].isna().all()):
             logger.info("Computing pChEMBL values")
             linked = self.bioactivity_extractor.compute_pchembl(linked)
 
         # Enrich with structure metadata
         if enrich_structures:
             logger.info("Enriching with structure metadata")
-            linked = self.structure_extractor.enrich_linked_data(
-                linked, fetch_metadata=True
-            )
+            linked = self.structure_extractor.enrich_linked_data(linked, fetch_metadata=True)
 
         # Filter by resolution
         if "resolution" in linked.columns:
@@ -208,7 +231,7 @@ class Pipeline:
         # Save output
         output_path = self.bioactivity_extractor.save_output(final_df)
 
-        logger.info(f"=== Pipeline complete ===")
+        logger.info("=== Pipeline complete ===")
         logger.info(f"Final dataset: {len(final_df)} records")
         logger.info(f"Output file: {output_path}")
 

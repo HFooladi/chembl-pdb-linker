@@ -43,6 +43,7 @@ class PDBConfig:
 
     api_base: str = "https://www.ebi.ac.uk/pdbe/api"
     rcsb_api_base: str = "https://data.rcsb.org/rest/v1"
+    rcsb_search_api: str = "https://search.rcsb.org/rcsbsearch/v2/query"
     sifts_ftp: str = "ftp://ftp.ebi.ac.uk/pub/databases/msd/sifts/flatfiles/csv/"
     max_resolution: float = 3.5
 

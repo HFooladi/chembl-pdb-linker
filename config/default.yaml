@@ -31,6 +31,8 @@ pdb:
   api_base: "https://www.ebi.ac.uk/pdbe/api"
   # RCSB API base URL
   rcsb_api_base: "https://data.rcsb.org/rest/v1"
+  # RCSB Search API URL
+  rcsb_search_api: "https://search.rcsb.org/rcsbsearch/v2/query"
   # SIFTS FTP for UniProt mappings
   sifts_ftp: "ftp://ftp.ebi.ac.uk/pub/databases/msd/sifts/flatfiles/csv/"
   # Maximum resolution filter (Angstroms)

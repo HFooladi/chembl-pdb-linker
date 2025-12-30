@@ -198,7 +198,7 @@ class StructureExtractor:
             f"(resolution <= {max_resolution} Å)"
         )
 
-        return df
+        return df  # type: ignore[return-value]
 
     def enrich_linked_data(
         self,
@@ -223,10 +223,10 @@ class StructureExtractor:
         if "pdb_id" in df.columns:
             pdb_ids = df["pdb_id"].dropna().unique().tolist()
         elif "pdb_ids" in df.columns:
-            # Handle list column
+            # Handle list/array column
             for ids in df["pdb_ids"].dropna():
-                if isinstance(ids, list):
-                    pdb_ids.extend(ids)
+                if hasattr(ids, "__iter__") and not isinstance(ids, str):
+                    pdb_ids.extend(list(ids))
             pdb_ids = list(set(pdb_ids))
 
         if not pdb_ids:
@@ -249,9 +249,13 @@ class StructureExtractor:
         if "pdb_id" in df.columns:
             df = df.merge(urls_df, on="pdb_id", how="left")
         else:
-            # For data with pdb_ids as lists, we'll just add URLs for the first PDB
+            # For data with pdb_ids as lists/arrays, we'll just add URLs for the first PDB
             df["primary_pdb_id"] = df["pdb_ids"].apply(
-                lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None
+                lambda x: (
+                    x[0]
+                    if hasattr(x, "__len__") and not isinstance(x, str) and len(x) > 0
+                    else None
+                )
             )
             urls_df = urls_df.rename(
                 columns={

@@ -37,15 +37,12 @@ class ChEMBLDownloader:
         """
         self.raw_dir.mkdir(parents=True, exist_ok=True)
 
+        # Resolve "latest" to actual version number
         if version == "latest":
-            ftp_url = f"{self.config.chembl.ftp_base}chembl_34_sqlite.tar.gz"
-            filename = "chembl_34_sqlite.tar.gz"
-        else:
-            ftp_url = (
-                f"ftp://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/"
-                f"releases/chembl_{version}/chembl_{version}_sqlite.tar.gz"
-            )
-            filename = f"chembl_{version}_sqlite.tar.gz"
+            version = "36"  # Current latest version as of Dec 2024
+
+        ftp_url = f"{self.config.chembl.ftp_base}chembl_{version}_sqlite.tar.gz"
+        filename = f"chembl_{version}_sqlite.tar.gz"
 
         tar_path = self.raw_dir / filename
         sqlite_dir = self.raw_dir / f"chembl_{version}_sqlite"
@@ -79,9 +76,7 @@ class ChEMBLDownloader:
                     self.total = tsize
                 self.update(b * bsize - self.n)
 
-        with DownloadProgressBar(
-            unit="B", unit_scale=True, miniters=1, desc=dest.name
-        ) as progress:
+        with DownloadProgressBar(unit="B", unit_scale=True, miniters=1, desc=dest.name) as progress:
             urllib.request.urlretrieve(url, dest, reporthook=progress.update_to)
 
     def extract_activities(self, sqlite_path: Path) -> pd.DataFrame:
@@ -121,20 +116,21 @@ class ChEMBLDownloader:
             td.chembl_id AS target_chembl_id,
             td.pref_name AS target_name,
             td.target_type,
-            tc.accession AS uniprot_id
+            cseq.accession AS uniprot_id
         FROM activities act
         JOIN molecule_dictionary mol ON act.molregno = mol.molregno
         JOIN compound_structures cs ON mol.molregno = cs.molregno
         JOIN assays ass ON act.assay_id = ass.assay_id
         JOIN target_dictionary td ON ass.tid = td.tid
         LEFT JOIN target_components tc ON td.tid = tc.tid
+        LEFT JOIN component_sequences cseq ON tc.component_id = cseq.component_id
         WHERE
             ass.confidence_score >= {confidence_score}
             AND act.standard_type IN ({activity_types_str})
             AND act.standard_units IN ({units_str})
             AND act.standard_value IS NOT NULL
             AND cs.standard_inchi_key IS NOT NULL
-            AND tc.accession IS NOT NULL
+            AND cseq.accession IS NOT NULL
         """
 
         conn = sqlite3.connect(sqlite_path)
@@ -188,10 +184,11 @@ class ChEMBLDownloader:
             td.pref_name AS target_name,
             td.target_type,
             td.organism,
-            tc.accession AS uniprot_id
+            cseq.accession AS uniprot_id
         FROM target_dictionary td
         JOIN target_components tc ON td.tid = tc.tid
-        WHERE tc.accession IS NOT NULL
+        JOIN component_sequences cseq ON tc.component_id = cseq.component_id
+        WHERE cseq.accession IS NOT NULL
         """
 
         conn = sqlite3.connect(sqlite_path)

@@ -65,20 +65,20 @@ class BioactivityExtractor:
             units = self.config.chembl.standard_units
 
         if "standard_units" in df.columns:
-            df = df[df["standard_units"].isin(units)]
+            df = df[df["standard_units"].isin(units)]  # type: ignore[index]
             logger.info(f"After units filter: {len(df)} records")
 
         # Filter by confidence score
-        if "confidence_score" in df.columns:
+        if "confidence_score" in df.columns:  # type: ignore[attr-defined]
             df = df[df["confidence_score"] >= min_confidence]
             logger.info(f"After confidence filter: {len(df)} records")
 
         # Remove null values
-        if "standard_value" in df.columns:
-            df = df[df["standard_value"].notna()]
+        if "standard_value" in df.columns:  # type: ignore[attr-defined]
+            df = df[df["standard_value"].notna()]  # type: ignore[index]
             logger.info(f"After removing null values: {len(df)} records")
 
-        return df
+        return df  # type: ignore[return-value]
 
     def standardize_units(
         self,
@@ -162,7 +162,7 @@ class BioactivityExtractor:
         ]
         for col in preserve_cols:
             if col in activities.columns:
-                agg_dict[col] = "first"
+                agg_dict[col] = "first"  # type: ignore[assignment]
 
         aggregated = activities.groupby(group_cols).agg(agg_dict).reset_index()
 
@@ -247,8 +247,19 @@ class BioactivityExtractor:
         rename_dict = {k: v for k, v in column_mapping.items() if k in df.columns}
         df = df.rename(columns=rename_dict)
 
-        # Remove duplicates if any
-        df = df.drop_duplicates()
+        # Remove duplicates - use only hashable columns for deduplication
+        hashable_cols = []
+        for col in df.columns:
+            # Skip columns with unhashable types (arrays, lists)
+            if col in ["pdb_ids", "chain_ids"]:
+                continue
+            sample = df[col].dropna().iloc[0] if len(df[col].dropna()) > 0 else None
+            if sample is not None and hasattr(sample, "__iter__") and not isinstance(sample, str):
+                continue
+            hashable_cols.append(col)
+
+        if hashable_cols:
+            df = df.drop_duplicates(subset=hashable_cols)
 
         logger.info(f"Extracted {len(df)} records for final output")
 

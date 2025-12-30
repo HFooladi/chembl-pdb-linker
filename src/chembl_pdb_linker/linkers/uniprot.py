@@ -54,9 +54,9 @@ class UniProtLinker:
 
         # Filter both datasets to common UniProt IDs
         chembl_filtered = chembl_activities[
-            chembl_activities["uniprot_id"].isin(common_uniprots)
+            chembl_activities["uniprot_id"].isin(list(common_uniprots))
         ].copy()
-        pdb_filtered = pdb_sifts[pdb_sifts["uniprot_id"].isin(common_uniprots)].copy()
+        pdb_filtered = pdb_sifts[pdb_sifts["uniprot_id"].isin(list(common_uniprots))].copy()
 
         # Aggregate PDB info per UniProt ID (one protein can have multiple structures)
         pdb_agg = (
@@ -105,7 +105,7 @@ class UniProtLinker:
 
         # Count activities that can be linked
         linkable_activities = chembl_activities[
-            chembl_activities["uniprot_id"].isin(common_uniprots)
+            chembl_activities["uniprot_id"].isin(list(common_uniprots))
         ]
 
         return {

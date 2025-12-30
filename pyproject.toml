@@ -42,7 +42,8 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "ruff>=0.1.0",
-    "mypy>=1.7.0",
+    "pyright>=1.1.0",
+    "pre-commit>=3.0.0",
 ]
 
 [project.scripts]
@@ -58,11 +59,99 @@ packages = ["src/chembl_pdb_linker"]
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".eggs",
+    "*.egg",
+    "dist",
+    "build",
+    "data",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W"]
+select = ["E", "F", "I", "N", "W", "B", "C4", "UP"]
+ignore = ["B008"]  # typer.Option() in defaults is required by typer
 
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pyright]
+pythonVersion = "3.9"
+typeCheckingMode = "basic"
+include = ["src"]
+exclude = [
+    "**/__pycache__",
+    "**/.*",
+    "tests",
+    "data",
+    "scripts",
+]
+reportMissingImports = false  # Disabled for pre-commit compatibility
+reportMissingTypeStubs = false
+reportUnusedImport = true
+reportUnusedClass = true
+reportUnusedFunction = true
+reportUnusedVariable = true
+reportDuplicateImport = true
+reportOptionalSubscript = true
+reportOptionalMemberAccess = true
+reportOptionalCall = true
+reportOptionalIterable = true
+reportOptionalContextManager = true
+reportOptionalOperand = true
+reportGeneralTypeIssues = true
+reportPrivateImportUsage = true
+reportUnknownMemberType = false  # Disabled due to pandas type stubs limitations
+reportUnknownArgumentType = false  # Disabled due to pandas type stubs limitations
+reportUnknownVariableType = false  # Disabled due to pandas type stubs limitations
+reportUnknownLambdaType = false
+reportUnknownParameterType = false
+reportMissingParameterType = false
+reportUntypedBaseClass = false
+reportUntypedClassDecorator = false
+reportUntypedFunctionDecorator = false
+reportUntypedNamedTuple = false
+reportCallInDefaultInitializer = false  # typer.Option() requires this pattern
+reportUnnecessaryIsInstance = true
+reportUnnecessaryCast = true
+reportUnnecessaryComparison = true
+reportAssertAlwaysTrue = true
+reportSelfClsParameterName = true
+reportImplicitStringConcatenation = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "-ra",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["src/chembl_pdb_linker"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
