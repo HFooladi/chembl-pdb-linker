@@ -180,6 +180,26 @@ The final Parquet file (`data/curated/bioactivity_pdb_linked.parquet`) contains:
 | Update frequency | Annual | On-demand |
 | Reproducibility | Manual | Fully automated |
 
+## Citation
+
+If you use this tool in your research, please cite:
+
+```bibtex
+@software{chembl_pdb_linker,
+  author = {Fooladi, Hosein},
+  title = {ChEMBL-PDB Linker: Linking Bioactivity Data with 3D Structures},
+  year = {2025},
+  publisher = {GitHub},
+  url = {https://github.com/HFooladi/chembl-pdb-linker}
+}
+```
+
+Please also cite the underlying data sources:
+
+- **ChEMBL**: Zdrazil, B., et al. (2024). The ChEMBL Database in 2023. Nucleic Acids Research, 52(D1), D1180-D1192.
+- **PDB**: Berman, H.M., et al. (2000). The Protein Data Bank. Nucleic Acids Research, 28(1), 235-242.
+- **SIFTS**: Dana, J.M., et al. (2019). SIFTS: updated Structure Integration with Function, Taxonomy and Sequences resource. Nucleic Acids Research, 47(D1), D482-D489.
+
 ## License
 
 MIT
