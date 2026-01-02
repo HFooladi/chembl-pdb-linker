@@ -194,8 +194,7 @@ class StructureExtractor:
         df = df[(df["resolution"].isna()) | (df["resolution"] <= max_resolution)]
 
         logger.info(
-            f"Filtered from {initial_count} to {len(df)} entries "
-            f"(resolution <= {max_resolution} Å)"
+            f"Filtered from {initial_count} to {len(df)} entries (resolution <= {max_resolution} Å)"
         )
 
         return df  # type: ignore[return-value]

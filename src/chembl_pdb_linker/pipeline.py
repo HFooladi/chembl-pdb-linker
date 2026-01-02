@@ -87,7 +87,7 @@ class Pipeline:
         ligand_inchikey_mapping = self.pdb_downloader.download_ligand_inchikey_mapping()
         if ligand_inchikey_mapping.empty:
             logger.warning(
-                "No ligand InChIKey mapping available. " "Ligand-level linking will be limited."
+                "No ligand InChIKey mapping available. Ligand-level linking will be limited."
             )
             ligand_inchikey_mapping = None
 
