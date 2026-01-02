@@ -1,9 +1,9 @@
 # ChEMBL-PDB Linker
 
 [![CI](https://github.com/HFooladi/chembl-pdb-linker/actions/workflows/ci.yml/badge.svg)](https://github.com/HFooladi/chembl-pdb-linker/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/HFooladi/chembl-pdb-linker/branch/main/graph/badge.svg)](https://codecov.io/gh/HFooladi/chembl-pdb-linker)
-[![PyPI version](https://badge.fury.io/py/chembl-pdb-linker.svg)](https://badge.fury.io/py/chembl-pdb-linker)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![codecov](https://codecov.io/gh/HFooladi/chembl-pdb-linker/graph/badge.svg)](https://codecov.io/gh/HFooladi/chembl-pdb-linker)
+[![PyPI version](https://img.shields.io/pypi/v/chembl-pdb-linker.svg)](https://pypi.org/project/chembl-pdb-linker/)
+[![Python 3.9+](https://img.shields.io/pypi/pyversions/chembl-pdb-linker.svg)](https://pypi.org/project/chembl-pdb-linker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Link ChEMBL bioactivity data with PDB structural information to create a curated dataset of protein-ligand pairs with both activity measurements and 3D co-crystal structures. Similar to PDBbind but derived from ChEMBL and PDB directly.
