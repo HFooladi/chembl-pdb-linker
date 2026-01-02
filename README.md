@@ -28,19 +28,22 @@ Running the full pipeline produces:
 ## Installation
 
 ```bash
-# Clone the repository
+pip install chembl-pdb-linker
+```
+
+### Development Installation
+
+For development or to install from source:
+
+```bash
 git clone https://github.com/HFooladi/chembl-pdb-linker.git
 cd chembl-pdb-linker
 
-# Option 1: Install with uv (recommended)
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e .
+# With uv (recommended)
+uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 
-# Option 2: Install with pip
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+# Or with pip
+python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
 ```
 
 ### Dependencies
