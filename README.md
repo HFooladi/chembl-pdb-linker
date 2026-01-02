@@ -1,6 +1,7 @@
 # ChEMBL-PDB Linker
 
 [![CI](https://github.com/HFooladi/chembl-pdb-linker/actions/workflows/ci.yml/badge.svg)](https://github.com/HFooladi/chembl-pdb-linker/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/HFooladi/chembl-pdb-linker/branch/main/graph/badge.svg)](https://codecov.io/gh/HFooladi/chembl-pdb-linker)
 [![PyPI version](https://badge.fury.io/py/chembl-pdb-linker.svg)](https://badge.fury.io/py/chembl-pdb-linker)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
