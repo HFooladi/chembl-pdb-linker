@@ -25,6 +25,16 @@ pyright
 
 # Run tests
 pytest
+
+# Run only unit tests (skip slow/integration)
+pytest tests/unit/
+pytest -m "not slow"
+
+# Run with coverage
+pytest --cov
+
+# Pre-commit (runs ruff + pyright)
+pre-commit run --all-files
 ```
 
 ## CLI Usage
@@ -69,9 +79,6 @@ This package links ChEMBL bioactivity data with PDB structural information to cr
 Data flows: `data/raw/` → `data/intermediate/` → `data/curated/`
 
 ### Core Components
-1. **Download** → **Link** → **Extract**
-2. `Pipeline` class orchestrates all components
-3. Data flows through `data/raw/` → `data/intermediate/` → `data/curated/`
 
 **Downloaders** (`src/chembl_pdb_linker/downloaders/`):
 - `ChEMBLDownloader`: Downloads ChEMBL SQLite, extracts activities/compounds/targets via SQL queries
@@ -110,7 +117,19 @@ Dataclass-based config loaded from `config/default.yaml`. Key settings:
 - **Intermediate**: `chembl_activities.parquet`, `pdb_sifts_mapping.parquet`, `pdb_ligands.parquet`
 - **Output**: `data/curated/bioactivity_pdb_linked.parquet`
 
+### Test Structure
+- `tests/unit/` — Fast tests for linkers, extractors, config
+- `tests/integration/` — CLI and pipeline tests (may need data/network)
+- Markers: `@pytest.mark.slow`, `@pytest.mark.integration`
+
 ### Expected Results
 - ~98,500 validated protein-ligand pairs with bioactivity data
 - ~9,000 unique compounds, ~14,700 PDB structures, ~1,300 proteins
 - Similar to PDBbind but with ChEMBL bioactivity data
+
+## Gotchas
+- **rdkit dependency**: May require conda or specific pip index; `uv pip install` from PyPI works with `rdkit>=2023.9.1`
+- **pyright + pandas**: Several pyright "unknown type" checks are disabled in pyproject.toml due to pandas type stub limitations — don't re-enable them
+- **ruff B008 ignore**: `typer.Option()` in function defaults is intentional (required by typer), hence `B008` is suppressed
+- **Pre-commit hooks**: ruff auto-fixes on commit (`--fix --exit-non-zero-on-fix`); if a commit fails, check ruff output — it may have already fixed the issue, just re-stage and commit
+- **Data directory gitignored**: `data/` is in `.gitignore` — pipeline outputs won't appear in git status
